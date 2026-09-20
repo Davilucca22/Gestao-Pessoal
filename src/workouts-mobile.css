@@ -47,3 +47,28 @@
     margin-right: auto;
   }
 }
+
+.nav-link:hover {
+  background: #102b3a;
+}
+
+.nav-link.active {
+  background: #123747;
+}
+
+.primary {
+  background: var(--lime);
+  box-shadow: 0 7px 24px rgba(45, 212, 255, 0.16);
+}
+
+.primary:hover {
+  background: #65ddff;
+}
+
+.secondary {
+  background: #163044;
+}
+
+.add-exercise-button:hover {
+  background: #102b3a;
+}

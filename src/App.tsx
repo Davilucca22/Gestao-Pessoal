@@ -110,7 +110,7 @@ function Shell() {
   );
   const [habits, setHabits] = useState<Habit[]>(() =>
     readStorage(STORAGE_KEYS.habits, [
-      { id: "h1", name: "Ler 20 minutos", color: "#c5ff4a", checks: {} },
+      { id: "h1", name: "Ler 20 minutos", color: "#2dd4ff", checks: {} },
       { id: "h2", name: "Beber 2L de água", color: "#68e0d0", checks: {} },
     ]),
   );
@@ -398,8 +398,8 @@ function Dashboard({
             <AreaChart data={chart}>
               <defs>
                 <linearGradient id="fill" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="0%" stopColor="#c5ff4a" stopOpacity={0.3} />
-                  <stop offset="100%" stopColor="#c5ff4a" stopOpacity={0} />
+                  <stop offset="0%" stopColor="#2dd4ff" stopOpacity={0.3} />
+                  <stop offset="100%" stopColor="#2dd4ff" stopOpacity={0} />
                 </linearGradient>
               </defs>
               <CartesianGrid stroke="#242a2b" vertical={false} />
@@ -418,7 +418,7 @@ function Dashboard({
               <Area
                 type="monotone"
                 dataKey="entradas"
-                stroke="#c5ff4a"
+                stroke="#2dd4ff"
                 fill="url(#fill)"
                 strokeWidth={2}
               />
@@ -716,7 +716,7 @@ function Finance({
                 innerRadius={65}
                 outerRadius={90}
               >
-                {["#ff9f5a", "#b59cff", "#c5ff4a"].map((color) => (
+                {["#ff9f5a", "#b59cff", "#2dd4ff"].map((color) => (
                   <Cell key={color} fill={color} />
                 ))}
               </Pie>
@@ -809,7 +809,7 @@ function Habits({
     } else {
       setData((items) => [
         ...items,
-        { id: uid(), name, color: "#c5ff4a", checks: {} },
+        { id: uid(), name, color: "#2dd4ff", checks: {} },
       ]);
       toast.success("Hábito criado");
     }
@@ -1127,7 +1127,7 @@ function Workouts({
               <CartesianGrid stroke="#242a2b" vertical={false} />
               <XAxis dataKey="month" axisLine={false} tickLine={false} tick={{ fill: "#6d7778", fontSize: 12 }} />
               <Tooltip contentStyle={{ background: "#171c1d", border: "1px solid #30383a" }} />
-              <Bar dataKey="treinos" fill="#c5ff4a" radius={[4, 4, 0, 0]} />
+              <Bar dataKey="treinos" fill="#2dd4ff" radius={[4, 4, 0, 0]} />
             </BarChart>
           </ResponsiveContainer>
         </Card>
