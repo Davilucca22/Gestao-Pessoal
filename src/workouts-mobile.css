@@ -1,0 +1,49 @@
+@media (max-width: 560px) {
+  .workout-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .workout-card {
+    cursor: pointer;
+  }
+
+  .workout-card-trigger {
+    outline: none;
+  }
+
+  .workout-card-trigger:focus-visible {
+    border-radius: 5px;
+    outline: 2px solid var(--lime);
+    outline-offset: 4px;
+  }
+
+  .workout-card-trigger .workout-days,
+  .workout-card-trigger .exercise-list,
+  .workout-card > .workout-actions {
+    display: none;
+  }
+
+  .workout-card-top {
+    align-items: center;
+  }
+
+  .workout-card-top h2 {
+    font-size: 16px;
+  }
+
+  .workout-card-top .eyebrow {
+    margin-bottom: 6px;
+  }
+
+  .workout-details .workout-days {
+    margin-top: 0;
+  }
+
+  .workout-details .workout-actions {
+    display: flex;
+  }
+
+  .workout-details .workout-actions .button {
+    margin-right: auto;
+  }
+}

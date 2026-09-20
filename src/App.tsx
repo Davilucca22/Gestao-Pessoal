@@ -1059,6 +1059,7 @@ function Workouts({
 }) {
   const [modal, setModal] = useState(false);
   const [editing, setEditing] = useState<Workout | null>(null);
+  const [selectedWorkout, setSelectedWorkout] = useState<Workout | null>(null);
   const currentMonth = new Date().toISOString().slice(0, 7);
   const monthLabels = Array.from({ length: 6 }, (_, index) => {
     const date = new Date();
@@ -1089,9 +1090,10 @@ function Workouts({
     toast.success(editing ? "Treino atualizado" : "Treino criado");
   };
   const deleteWorkout = (workout: Workout) => {
-    if (!window.confirm(`Excluir o treino "${workout.title}"?`)) return;
+    if (!window.confirm(`Excluir o treino "${workout.title}"?`)) return false;
     setData((items) => items.filter((item) => item.id !== workout.id));
     toast.info("Treino excluído");
+    return true;
   };
   const registerSession = (workout: Workout) => {
     if (workout.sessions[today]) {
@@ -1133,14 +1135,39 @@ function Workouts({
       </div>
       <div className="workout-grid">
         {data.map((workout) => <Card className="workout-card" key={workout.id}>
-          <div className="workout-card-top"><div><p className="eyebrow">Plano de treino</p><h2>{workout.title}</h2></div><span className="workout-count">{Object.entries(workout.sessions).filter(([key]) => key.startsWith(currentMonth)).reduce((total, [, count]) => total + count, 0)} no mês</span></div>
-          <div className="workout-days">{workout.days.map((day) => <span key={day}>{day}</span>)}</div>
-          <div className="exercise-list">{workout.exercises.map((exercise) => <div className="exercise-row" key={exercise.id}><span><strong>{exercise.name}</strong><small>{exercise.sets} séries · {exercise.reps} repetições</small></span></div>)}</div>
-          <div className="workout-actions"><button className="button primary" onClick={() => registerSession(workout)}><Check size={15} /> Registrar treino</button><button className="icon-button" onClick={() => { setEditing(workout); setModal(true); }} aria-label={`Editar treino ${workout.title}`} title="Editar treino"><Pencil size={15} /></button><button className="delete-button" onClick={() => deleteWorkout(workout)} aria-label={`Excluir treino ${workout.title}`} title="Excluir treino"><Trash2 size={15} /></button></div>
+          <div
+            className="workout-card-trigger"
+            role="button"
+            tabIndex={0}
+            aria-label={`Ver exercícios de ${workout.title}`}
+            onClick={() => setSelectedWorkout(workout)}
+            onKeyDown={(event) => {
+              if (event.key === "Enter" || event.key === " ") {
+                event.preventDefault();
+                setSelectedWorkout(workout);
+              }
+            }}
+          >
+            <div className="workout-card-top"><div><p className="eyebrow">Plano de treino</p><h2>{workout.title}</h2></div><span className="workout-count">{Object.entries(workout.sessions).filter(([key]) => key.startsWith(currentMonth)).reduce((total, [, count]) => total + count, 0)} no mês</span></div>
+            <div className="workout-days">{workout.days.map((day) => <span key={day}>{day}</span>)}</div>
+            <div className="exercise-list">{workout.exercises.map((exercise) => <div className="exercise-row" key={exercise.id}><span><strong>{exercise.name}</strong><small>{exercise.sets} séries · {exercise.reps} repetições</small></span></div>)}</div>
+          </div>
+          <div className="workout-actions"><button className="button primary" onClick={(event) => { event.stopPropagation(); registerSession(workout); }}><Check size={15} /> Registrar treino</button><button className="icon-button" onClick={(event) => { event.stopPropagation(); setEditing(workout); setModal(true); }} aria-label={`Editar treino ${workout.title}`} title="Editar treino"><Pencil size={15} /></button><button className="delete-button" onClick={(event) => { event.stopPropagation(); deleteWorkout(workout); }} aria-label={`Excluir treino ${workout.title}`} title="Excluir treino"><Trash2 size={15} /></button></div>
         </Card>)}
         {!data.length && <Empty text="Cadastre seu primeiro plano de treino" />}
       </div>
       {modal && <Modal title={editing ? "Editar treino" : "Novo treino"} close={() => { setEditing(null); setModal(false); }}><WorkoutForm initial={editing} onSave={save} /></Modal>}
+      {selectedWorkout && <Modal title={selectedWorkout.title} close={() => setSelectedWorkout(null)}>
+        <div className="workout-details">
+          <div className="workout-days">{selectedWorkout.days.map((day) => <span key={day}>{day}</span>)}</div>
+          <div className="exercise-list">{selectedWorkout.exercises.map((exercise) => <div className="exercise-row" key={exercise.id}><span><strong>{exercise.name}</strong><small>{exercise.sets} séries · {exercise.reps} repetições</small></span></div>)}</div>
+          <div className="workout-actions">
+            <button className="button primary" onClick={() => { registerSession(selectedWorkout); setSelectedWorkout(null); }}><Check size={15} /> Registrar treino</button>
+            <button className="icon-button" onClick={() => { setEditing(selectedWorkout); setSelectedWorkout(null); setModal(true); }} aria-label={`Editar treino ${selectedWorkout.title}`} title="Editar treino"><Pencil size={15} /></button>
+            <button className="delete-button" onClick={() => { if (deleteWorkout(selectedWorkout)) setSelectedWorkout(null); }} aria-label={`Excluir treino ${selectedWorkout.title}`} title="Excluir treino"><Trash2 size={15} /></button>
+          </div>
+        </div>
+      </Modal>}
     </Page>
   );
 }
