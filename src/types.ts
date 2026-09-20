@@ -31,3 +31,18 @@ export type CalendarEvent = {
   description: string
   remind: boolean
 }
+
+export type WorkoutExercise = {
+  id: string
+  name: string
+  sets: number
+  reps: number
+}
+
+export type Workout = {
+  id: string
+  title: string
+  days: string[]
+  exercises: WorkoutExercise[]
+  sessions: Record<string, number>
+}

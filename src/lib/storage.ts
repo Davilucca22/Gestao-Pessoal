@@ -16,4 +16,5 @@ export const STORAGE_KEYS = {
   habits: 'gestao-pessoal:habits',
   notes: 'gestao-pessoal:notes',
   events: 'gestao-pessoal:events',
+  workouts: 'gestao-pessoal:workouts',
 }

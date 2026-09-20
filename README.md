@@ -1,4 +1,4 @@
-# Nexo · Gestão pessoal
+# MyControl · Gestão pessoal
 
 Aplicação web responsiva para organizar dinheiro, hábitos, anotações e eventos em um único espaço pessoal.
 
@@ -27,6 +27,8 @@ Também estão disponíveis `npm run build`, `npm run lint` e `npm run preview`.
 - Hábitos com criação e checklist mensal navegável por mês, marcação diária e progresso.
 - Agenda de anotações com data, busca e exclusão.
 - Calendário de eventos com data, horário opcional, descrição e próximos compromissos.
+- Treinos com planos de exercícios, séries, repetições, dias da semana, edição, exclusão e registro de sessões.
+- Gráfico de evolução mensal baseado nas sessões de treino registradas.
 - Layout adaptado para desktop e celular, com menu lateral responsivo e feedback por toast.
 
 ## Persistência

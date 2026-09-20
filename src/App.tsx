@@ -11,6 +11,8 @@ import { ToastContainer, toast } from "react-toastify";
 import {
   Area,
   AreaChart,
+  Bar,
+  BarChart,
   CartesianGrid,
   Cell,
   Pie,
@@ -26,6 +28,7 @@ import {
   ChevronRight,
   CircleDollarSign,
   ClipboardList,
+  Dumbbell,
   LayoutDashboard,
   Menu,
   NotebookPen,
@@ -46,6 +49,8 @@ import type {
   Note,
   Transaction,
   TransactionType,
+  Workout,
+  WorkoutExercise,
 } from "./types";
 
 const today = new Date().toISOString().slice(0, 10);
@@ -115,6 +120,9 @@ function Shell() {
   const [events, setEvents] = useState<CalendarEvent[]>(() =>
     readStorage(STORAGE_KEYS.events, []),
   );
+  const [workouts, setWorkouts] = useState<Workout[]>(() =>
+    readStorage(STORAGE_KEYS.workouts, []),
+  );
   const [open, setOpen] = useState(false);
   useEffect(
     () => writeStorage(STORAGE_KEYS.transactions, transactions),
@@ -123,19 +131,21 @@ function Shell() {
   useEffect(() => writeStorage(STORAGE_KEYS.habits, habits), [habits]);
   useEffect(() => writeStorage(STORAGE_KEYS.notes, notes), [notes]);
   useEffect(() => writeStorage(STORAGE_KEYS.events, events), [events]);
+  useEffect(() => writeStorage(STORAGE_KEYS.workouts, workouts), [workouts]);
   const links: [string, string, Icon][] = [
     ["/", "Visão geral", LayoutDashboard],
     ["/finance", "Finanças", Wallet],
     ["/habits", "Hábitos", Target],
     ["/notes", "Agenda", NotebookPen],
     ["/calendar", "Calendário", CalendarDays],
+    ["/workouts", "Treinos", Dumbbell],
   ];
   return (
     <>
       <div className="app-shell">
         <aside className={open ? "sidebar open" : "sidebar"}>
           <div className="brand">
-            <span className="brand-mark">◒</span>nexo
+            <span className="brand-mark">◒</span>MyControl
             <span className="accent">.</span>
           </div>
           <p className="eyebrow sidebar-eyebrow">Seu espaço pessoal</p>
@@ -179,7 +189,7 @@ function Shell() {
               <Menu size={20} />
             </button>
             <div>
-              <span className="breadcrumb">NEXO / </span>
+              <span className="breadcrumb">MYCONTROL / </span>
               <Title />
             </div>
             <div className="top-actions">
@@ -223,6 +233,10 @@ function Shell() {
               path="/calendar"
               element={<Calendar data={events} setData={setEvents} />}
             />
+            <Route
+              path="/workouts"
+              element={<Workouts data={workouts} setData={setWorkouts} />}
+            />
           </Routes>
         </main>
       </div>
@@ -240,7 +254,8 @@ function Title() {
         "/habits": "Hábitos",
         "/notes": "Agenda",
         "/calendar": "Calendário",
-      }[path] || "Nexo"}
+        "/workouts": "Treinos",
+      }[path] || "MyControl"}
     </strong>
   );
 }
@@ -1035,6 +1050,123 @@ function Notes({
     </Page>
   );
 }
+function Workouts({
+  data,
+  setData,
+}: {
+  data: Workout[];
+  setData: React.Dispatch<React.SetStateAction<Workout[]>>;
+}) {
+  const [modal, setModal] = useState(false);
+  const [editing, setEditing] = useState<Workout | null>(null);
+  const currentMonth = new Date().toISOString().slice(0, 7);
+  const monthLabels = Array.from({ length: 6 }, (_, index) => {
+    const date = new Date();
+    date.setMonth(date.getMonth() - (5 - index));
+    return {
+      key: date.toISOString().slice(0, 7),
+      label: date.toLocaleDateString("pt-BR", { month: "short" }).replace(".", ""),
+    };
+  });
+  const chartData = monthLabels.map((month) => ({
+    month: month.label,
+    treinos: data.reduce(
+      (total, workout) =>
+        total +
+        Object.entries(workout.sessions)
+          .filter(([key]) => key.startsWith(month.key))
+          .reduce((subtotal, [, count]) => subtotal + count, 0),
+      0,
+    ),
+  }));
+  const save = (workout: Workout) => {
+    setData((items) => {
+      const exists = items.some((item) => item.id === workout.id);
+      return exists ? items.map((item) => (item.id === workout.id ? workout : item)) : [...items, workout];
+    });
+    setEditing(null);
+    setModal(false);
+    toast.success(editing ? "Treino atualizado" : "Treino criado");
+  };
+  const deleteWorkout = (workout: Workout) => {
+    if (!window.confirm(`Excluir o treino "${workout.title}"?`)) return;
+    setData((items) => items.filter((item) => item.id !== workout.id));
+    toast.info("Treino excluído");
+  };
+  const registerSession = (workout: Workout) => {
+    if (workout.sessions[today]) {
+      toast.warn("Esse treino já foi registrado hoje");
+      return;
+    }
+    setData((items) => items.map((item) => item.id === workout.id
+      ? { ...item, sessions: { ...item.sessions, [today]: 1 } }
+      : item));
+    toast.success("Treino registrado");
+  };
+  return (
+    <Page>
+      <Intro
+        eyebrow="Força e constância"
+        title="Seu plano de treino."
+        description="Organize exercícios, acompanhe sua rotina e veja sua evolução."
+        action={<button className="button primary" onClick={() => { setEditing(null); setModal(true); }}><Plus size={17} /> Novo treino</button>}
+      />
+      <div className="stats-grid">
+        <Stat label="Planos ativos" value={String(data.length)} detail="Treinos cadastrados" icon={Dumbbell} />
+        <Stat label="Treinos no mês" value={String(chartData[chartData.length - 1]?.treinos || 0)} detail="Sessões registradas" tone="teal" icon={TrendingUp} />
+        <Stat label="Exercícios" value={String(data.reduce((total, workout) => total + workout.exercises.length, 0))} detail="Na sua programação" tone="purple" icon={Target} />
+        <Stat label="Dias planejados" value={String(new Set(data.flatMap((workout) => workout.days)).size)} detail="Dias diferentes" tone="orange" icon={CalendarDays} />
+      </div>
+      <div className="workout-layout">
+        <Card>
+          <Heading eyebrow="Evolução mensal" title="Frequência de treinos" />
+          <ResponsiveContainer width="100%" height={245}>
+            <BarChart data={chartData}>
+              <CartesianGrid stroke="#242a2b" vertical={false} />
+              <XAxis dataKey="month" axisLine={false} tickLine={false} tick={{ fill: "#6d7778", fontSize: 12 }} />
+              <Tooltip contentStyle={{ background: "#171c1d", border: "1px solid #30383a" }} />
+              <Bar dataKey="treinos" fill="#c5ff4a" radius={[4, 4, 0, 0]} />
+            </BarChart>
+          </ResponsiveContainer>
+        </Card>
+        <Card className="workout-tip"><Dumbbell size={25} /><h2>Consistência vence intensidade</h2><p>Registre cada sessão concluída para acompanhar seu ritmo mês a mês.</p></Card>
+      </div>
+      <div className="workout-grid">
+        {data.map((workout) => <Card className="workout-card" key={workout.id}>
+          <div className="workout-card-top"><div><p className="eyebrow">Plano de treino</p><h2>{workout.title}</h2></div><span className="workout-count">{Object.entries(workout.sessions).filter(([key]) => key.startsWith(currentMonth)).reduce((total, [, count]) => total + count, 0)} no mês</span></div>
+          <div className="workout-days">{workout.days.map((day) => <span key={day}>{day}</span>)}</div>
+          <div className="exercise-list">{workout.exercises.map((exercise) => <div className="exercise-row" key={exercise.id}><span><strong>{exercise.name}</strong><small>{exercise.sets} séries · {exercise.reps} repetições</small></span></div>)}</div>
+          <div className="workout-actions"><button className="button primary" onClick={() => registerSession(workout)}><Check size={15} /> Registrar treino</button><button className="icon-button" onClick={() => { setEditing(workout); setModal(true); }} aria-label={`Editar treino ${workout.title}`} title="Editar treino"><Pencil size={15} /></button><button className="delete-button" onClick={() => deleteWorkout(workout)} aria-label={`Excluir treino ${workout.title}`} title="Excluir treino"><Trash2 size={15} /></button></div>
+        </Card>)}
+        {!data.length && <Empty text="Cadastre seu primeiro plano de treino" />}
+      </div>
+      {modal && <Modal title={editing ? "Editar treino" : "Novo treino"} close={() => { setEditing(null); setModal(false); }}><WorkoutForm initial={editing} onSave={save} /></Modal>}
+    </Page>
+  );
+}
+
+function WorkoutForm({ initial, onSave }: { initial: Workout | null; onSave: (workout: Workout) => void }) {
+  const [title, setTitle] = useState(initial?.title || "");
+  const [days, setDays] = useState(initial?.days || []);
+  const [exercises, setExercises] = useState<WorkoutExercise[]>(initial?.exercises || []);
+  const weekDays = ["Seg", "Ter", "Qua", "Qui", "Sex", "Sáb", "Dom"];
+  const addExercise = () => setExercises((items) => [...items, { id: uid(), name: "", sets: 3, reps: 10 }]);
+  const submit = (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (!title.trim() || !days.length || !exercises.length || exercises.some((exercise) => !exercise.name.trim())) {
+      toast.warn("Preencha o nome, os dias e pelo menos um exercício");
+      return;
+    }
+    onSave({ id: initial?.id || uid(), title: title.trim(), days, exercises, sessions: initial?.sessions || {} });
+  };
+  return <form onSubmit={submit} className="form-grid workout-form">
+    <label className="wide">Nome do treino<input value={title} onChange={(event) => setTitle(event.target.value)} required placeholder="Ex: Treino A · Superior" /></label>
+    <div className="wide"><span className="form-label">Dias de treino</span><div className="day-options">{weekDays.map((day) => <button type="button" key={day} className={days.includes(day) ? "day-option selected" : "day-option"} onClick={() => setDays((items) => items.includes(day) ? items.filter((item) => item !== day) : [...items, day])}>{day}</button>)}</div></div>
+    <div className="wide exercise-builder"><div className="builder-heading"><span className="form-label">Exercícios</span><button type="button" className="add-exercise-button" onClick={addExercise}><Plus size={14} /> Adicionar exercício</button></div>{exercises.map((exercise, index) => <div className="exercise-input-row" key={exercise.id}><input value={exercise.name} onChange={(event) => setExercises((items) => items.map((item, itemIndex) => itemIndex === index ? { ...item, name: event.target.value } : item))} placeholder="Ex: Supino reto" required /><input type="number" min="1" value={exercise.sets} onChange={(event) => setExercises((items) => items.map((item, itemIndex) => itemIndex === index ? { ...item, sets: Number(event.target.value) } : item))} aria-label="Séries" /><input type="number" min="1" value={exercise.reps} onChange={(event) => setExercises((items) => items.map((item, itemIndex) => itemIndex === index ? { ...item, reps: Number(event.target.value) } : item))} aria-label="Repetições" /><button type="button" className="delete-button" onClick={() => setExercises((items) => items.filter((item) => item.id !== exercise.id))} aria-label="Remover exercício"><Trash2 size={14} /></button></div>)}{!exercises.length && <p className="form-hint">Adicione os exercícios que fazem parte deste treino.</p>}</div>
+    <button className="button primary full" type="submit">{initial ? "Salvar alterações" : "Criar treino"}</button>
+  </form>;
+}
+
 function Calendar({
   data,
   setData,
