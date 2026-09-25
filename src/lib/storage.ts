@@ -13,6 +13,7 @@ export function writeStorage<T>(key: string, value: T) {
 
 export const STORAGE_KEYS = {
   transactions: 'gestao-pessoal:transactions',
+  customTransactionTypes: 'gestao-pessoal:custom-transaction-types',
   habits: 'gestao-pessoal:habits',
   notes: 'gestao-pessoal:notes',
   events: 'gestao-pessoal:events',

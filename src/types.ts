@@ -1,4 +1,9 @@
-export type TransactionType = 'income' | 'expense' | 'investment'
+export type TransactionType = 'income' | 'expense' | 'investment' | `custom:${string}`
+
+export type CustomTransactionType = {
+  id: string
+  name: string
+}
 
 export type Transaction = {
   id: string

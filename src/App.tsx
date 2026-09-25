@@ -45,6 +45,7 @@ import "react-toastify/dist/ReactToastify.css";
 import { readStorage, STORAGE_KEYS, writeStorage } from "./lib/storage";
 import type {
   CalendarEvent,
+  CustomTransactionType,
   Habit,
   Note,
   Transaction,
@@ -108,6 +109,9 @@ function Shell() {
   const [transactions, setTransactions] = useState(() =>
     readStorage(STORAGE_KEYS.transactions, initialTransactions),
   );
+  const [customTransactionTypes, setCustomTransactionTypes] = useState<CustomTransactionType[]>(() =>
+    readStorage(STORAGE_KEYS.customTransactionTypes, []),
+  );
   const [habits, setHabits] = useState<Habit[]>(() =>
     readStorage(STORAGE_KEYS.habits, [
       { id: "h1", name: "Ler 20 minutos", color: "#2dd4ff", checks: {} },
@@ -127,6 +131,10 @@ function Shell() {
   useEffect(
     () => writeStorage(STORAGE_KEYS.transactions, transactions),
     [transactions],
+  );
+  useEffect(
+    () => writeStorage(STORAGE_KEYS.customTransactionTypes, customTransactionTypes),
+    [customTransactionTypes],
   );
   useEffect(() => writeStorage(STORAGE_KEYS.habits, habits), [habits]);
   useEffect(() => writeStorage(STORAGE_KEYS.notes, notes), [notes]);
@@ -218,7 +226,12 @@ function Shell() {
             <Route
               path="/finance"
               element={
-                <Finance data={transactions} setData={setTransactions} />
+                <Finance
+                  data={transactions}
+                  setData={setTransactions}
+                  customTypes={customTransactionTypes}
+                  setCustomTypes={setCustomTransactionTypes}
+                />
               }
             />
             <Route
@@ -597,20 +610,36 @@ function Modal({
 function Finance({
   data,
   setData,
+  customTypes,
+  setCustomTypes,
 }: {
   data: Transaction[];
   setData: React.Dispatch<React.SetStateAction<Transaction[]>>;
+  customTypes: CustomTransactionType[];
+  setCustomTypes: React.Dispatch<React.SetStateAction<CustomTransactionType[]>>;
 }) {
   const [type, setType] = useState<TransactionType>("expense");
   const [modal, setModal] = useState(false);
+  const [customTypeName, setCustomTypeName] = useState("");
   const add = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     const form = new FormData(event.currentTarget);
+    let transactionType = type;
+    if (type === "custom:new") {
+      const name = customTypeName.trim();
+      if (!name) return;
+      const existingType = customTypes.find(
+        (customType) => customType.name.toLowerCase() === name.toLowerCase(),
+      );
+      const customType = existingType || { id: uid(), name };
+      if (!existingType) setCustomTypes((items) => [...items, customType]);
+      transactionType = `custom:${customType.id}`;
+    }
     setData((items) => [
       ...items,
       {
         id: uid(),
-        type,
+        type: transactionType,
         title: String(form.get("title")),
         category: String(form.get("category")),
         amount: Number(form.get("amount")),
@@ -618,7 +647,16 @@ function Finance({
       },
     ]);
     setModal(false);
+    setCustomTypeName("");
     toast.success("Lançamento adicionado");
+  };
+  const deleteCustomType = (id: string, name: string) => {
+    if (!window.confirm(`Excluir a caixinha "${name}" e seus lançamentos?`)) return;
+    const customTransactionType = `custom:${id}`;
+    setCustomTypes((items) => items.filter((item) => item.id !== id));
+    setData((items) => items.filter((item) => item.type !== customTransactionType));
+    if (type === customTransactionType) setType("expense");
+    toast.info("Caixinha excluída");
   };
   return (
     <Page>
@@ -638,7 +676,8 @@ function Finance({
           value={money(
             sum(data, "income") -
               sum(data, "expense") -
-              sum(data, "investment"),
+              sum(data, "investment") -
+              customTypes.reduce((total, customType) => total + sum(data, `custom:${customType.id}`), 0),
           )}
           detail="Depois de investimentos"
           icon={CircleDollarSign}
@@ -659,8 +698,11 @@ function Finance({
         />
         <Stat
           label="Investimentos"
-          value={money(sum(data, "investment"))}
-          detail="Construindo futuro"
+          value={money(
+            sum(data, "investment") +
+              customTypes.reduce((total, customType) => total + sum(data, `custom:${customType.id}`), 0),
+          )}
+          detail="Investimentos e caixinhas"
           tone="purple"
           icon={Target}
         />
@@ -673,14 +715,32 @@ function Finance({
               ["expense", "Gastos"],
               ["income", "Entradas"],
               ["investment", "Investimentos"],
+              ...customTypes.map((customType) => [`custom:${customType.id}`, customType.name]),
             ].map(([value, label]) => (
-              <button
-                className={type === value ? "selected" : ""}
+              <span
                 key={value}
-                onClick={() => setType(value as TransactionType)}
+                style={{ display: "flex", alignItems: "center", whiteSpace: "nowrap" }}
               >
-                {label}
-              </button>
+                <button
+                  className={type === value ? "selected" : ""}
+                  onClick={() => setType(value as TransactionType)}
+                >
+                  {label}
+                </button>
+                {value.startsWith("custom:") && (
+                  <button
+                    className="delete-button"
+                    style={{ padding: "3px 4px" }}
+                    onClick={() =>
+                      deleteCustomType(value.slice("custom:".length), label)
+                    }
+                    aria-label={`Excluir caixinha ${label}`}
+                    title={`Excluir caixinha ${label}`}
+                  >
+                    <Trash2 size={13} />
+                  </button>
+                )}
+              </span>
             ))}
           </div>
           <Transactions
@@ -702,6 +762,10 @@ function Finance({
                 data={[
                   { name: "Gastos", value: sum(data, "expense") },
                   { name: "Investimentos", value: sum(data, "investment") },
+                  ...customTypes.map((customType) => ({
+                    name: customType.name,
+                    value: sum(data, `custom:${customType.id}`),
+                  })),
                   {
                     name: "Livre",
                     value: Math.max(
@@ -739,8 +803,25 @@ function Finance({
                 <option value="expense">Gasto</option>
                 <option value="income">Entrada</option>
                 <option value="investment">Investimento</option>
+                {customTypes.map((customType) => (
+                  <option key={customType.id} value={`custom:${customType.id}`}>
+                    Caixinha: {customType.name}
+                  </option>
+                ))}
+                <option value="custom:new">+ Criar caixinha</option>
               </select>
             </label>
+            {type === "custom:new" && (
+              <label className="wide">
+                Nome da caixinha
+                <input
+                  value={customTypeName}
+                  onChange={(event) => setCustomTypeName(event.target.value)}
+                  required
+                  placeholder="Ex: Viagem"
+                />
+              </label>
+            )}
             <label>
               Descrição
               <input name="title" required placeholder="Ex: Mercado" />
@@ -962,21 +1043,25 @@ function Notes({
   setData: React.Dispatch<React.SetStateAction<Note[]>>;
 }) {
   const [modal, setModal] = useState(false);
+  const [editing, setEditing] = useState<Note | null>(null);
   const [query, setQuery] = useState("");
-  const add = (event: FormEvent<HTMLFormElement>) => {
+  const save = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     const form = new FormData(event.currentTarget);
-    setData((items) => [
-      {
-        id: uid(),
-        title: String(form.get("title")),
-        content: String(form.get("content")),
-        date: String(form.get("date")),
-      },
-      ...items,
-    ]);
+    const note = {
+      id: editing?.id || uid(),
+      title: String(form.get("title")),
+      content: String(form.get("content")),
+      date: String(form.get("date")),
+    };
+    setData((items) =>
+      editing
+        ? items.map((item) => (item.id === editing.id ? note : item))
+        : [note, ...items],
+    );
     setModal(false);
-    toast.success("Anotação salva");
+    setEditing(null);
+    toast.success(editing ? "Anotação atualizada" : "Anotação salva");
   };
   const filtered = data.filter((note) =>
     `${note.title} ${note.content}`.toLowerCase().includes(query.toLowerCase()),
@@ -1006,17 +1091,29 @@ function Notes({
           <Card className="note-card" key={note.id}>
             <div className="note-top">
               <span className="note-date">{dateLabel(note.date)}</span>
-              <button
-                className="delete-button"
-                onClick={() =>
-                  setData((items) =>
-                    items.filter((item) => item.id !== note.id),
-                  )
-                }
-                aria-label="Excluir"
-              >
-                <Trash2 size={15} />
-              </button>
+              <div style={{ display: "flex", alignItems: "center", gap: 2 }}>
+                <button
+                  className="delete-button"
+                  onClick={() => {
+                    setEditing(note);
+                    setModal(true);
+                  }}
+                  aria-label="Editar anotação"
+                >
+                  <Pencil size={15} />
+                </button>
+                <button
+                  className="delete-button"
+                  onClick={() =>
+                    setData((items) =>
+                      items.filter((item) => item.id !== note.id),
+                    )
+                  }
+                  aria-label="Excluir anotação"
+                >
+                  <Trash2 size={15} />
+                </button>
+              </div>
             </div>
             <h2>{note.title}</h2>
             <p>{note.content}</p>
@@ -1027,22 +1124,28 @@ function Notes({
         )}
       </div>
       {modal && (
-        <Modal title="Nova anotação" close={() => setModal(false)}>
-          <form onSubmit={add} className="form-grid">
+        <Modal
+          title={editing ? "Editar anotação" : "Nova anotação"}
+          close={() => {
+            setEditing(null);
+            setModal(false);
+          }}
+        >
+          <form onSubmit={save} className="form-grid">
             <label className="wide">
               Título
-              <input name="title" required />
+              <input name="title" required defaultValue={editing?.title} />
             </label>
             <label className="wide">
               Anotação
-              <textarea name="content" required rows={5} />
+              <textarea name="content" required rows={5} defaultValue={editing?.content} />
             </label>
             <label>
               Data
-              <input name="date" required type="date" defaultValue={today} />
+              <input name="date" required type="date" defaultValue={editing?.date || today} />
             </label>
             <button className="button primary full" type="submit">
-              Salvar anotação
+              {editing ? "Salvar alterações" : "Salvar anotação"}
             </button>
           </form>
         </Modal>
@@ -1202,24 +1305,27 @@ function Calendar({
   setData: React.Dispatch<React.SetStateAction<CalendarEvent[]>>;
 }) {
   const [modal, setModal] = useState(false);
-  const add = (event: FormEvent<HTMLFormElement>) => {
+  const [editing, setEditing] = useState<CalendarEvent | null>(null);
+  const save = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     const form = new FormData(event.currentTarget);
+    const calendarEvent = {
+      id: editing?.id || uid(),
+      title: String(form.get("title")),
+      date: String(form.get("date")),
+      time: String(form.get("time")),
+      description: String(form.get("description")),
+      remind: editing?.remind ?? true,
+    };
     setData((items) =>
-      [
-        ...items,
-        {
-          id: uid(),
-          title: String(form.get("title")),
-          date: String(form.get("date")),
-          time: String(form.get("time")),
-          description: String(form.get("description")),
-          remind: true,
-        },
-      ].sort((a, b) => a.date.localeCompare(b.date)),
+      (editing
+        ? items.map((item) => (item.id === editing.id ? calendarEvent : item))
+        : [...items, calendarEvent]
+      ).sort((a, b) => a.date.localeCompare(b.date)),
     );
     setModal(false);
-    toast.success("Evento adicionado");
+    setEditing(null);
+    toast.success(editing ? "Evento atualizado" : "Evento adicionado");
   };
   return (
     <Page>
@@ -1251,6 +1357,16 @@ function Calendar({
               </div>
               <button
                 className="delete-button"
+                onClick={() => {
+                  setEditing(event);
+                  setModal(true);
+                }}
+                aria-label="Editar evento"
+              >
+                <Pencil size={15} />
+              </button>
+              <button
+                className="delete-button"
                 onClick={() =>
                   setData((items) =>
                     items.filter((item) => item.id !== event.id),
@@ -1274,26 +1390,32 @@ function Calendar({
         </Card>
       </div>
       {modal && (
-        <Modal title="Novo evento" close={() => setModal(false)}>
-          <form onSubmit={add} className="form-grid">
+        <Modal
+          title={editing ? "Editar evento" : "Novo evento"}
+          close={() => {
+            setEditing(null);
+            setModal(false);
+          }}
+        >
+          <form onSubmit={save} className="form-grid">
             <label className="wide">
               Título
-              <input name="title" required />
+              <input name="title" required defaultValue={editing?.title} />
             </label>
             <label>
               Data
-              <input name="date" required type="date" defaultValue={today} />
+              <input name="date" required type="date" defaultValue={editing?.date || today} />
             </label>
             <label>
               Horário
-              <input name="time" type="time" />
+              <input name="time" type="time" defaultValue={editing?.time} />
             </label>
             <label className="wide">
               Descrição
-              <input name="description" />
+              <input name="description" defaultValue={editing?.description} />
             </label>
             <button className="button primary full" type="submit">
-              Salvar evento
+              {editing ? "Salvar alterações" : "Salvar evento"}
             </button>
           </form>
         </Modal>
