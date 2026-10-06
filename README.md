@@ -31,9 +31,11 @@ Também estão disponíveis `npm run build`, `npm run lint` e `npm run preview`.
 - Gráfico de evolução mensal baseado nas sessões de treino registradas.
 - Layout adaptado para desktop e celular, com menu lateral responsivo e feedback por toast.
 
-## Persistência
+## Persistência e backend
 
-Os dados são armazenados no `localStorage` com chaves separadas por domínio. A leitura e escrita passam por `src/lib/storage.ts`, mantendo as telas desacopladas do mecanismo de persistência e facilitando uma futura substituição por API ou banco de dados.
+O frontend autentica no backend e sincroniza as coleções por conta. Os dados já existentes nas chaves do `localStorage` são importados automaticamente no primeiro login ou cadastro; enquanto sincroniza, o cache local é mantido. O backend persiste o documento JSONB por usuário na tabela `USER_APP_DATA`.
+
+Em desenvolvimento, o Vite encaminha `/api` para `http://localhost:3000`. Para apontar diretamente a outra instalação do backend, configure `VITE_API_URL` com a URL base da API. No backend, configure `URLFRONT` com a origem do frontend (por exemplo, `http://localhost:5173`) e as variáveis `DATABASE_CONNECT` e `SECRET`, conforme a documentação do backend.
 
 Os lembretes atuais aparecem dentro da aplicação por meio da lista de próximos eventos. Notificações do navegador em segundo plano ainda não fazem parte desta versão.
 # Gestao-Pessoal
