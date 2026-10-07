@@ -106,10 +106,10 @@ function SessionRouter() {
     isNewAccount = false,
   ) => {
     const pendingKey = pendingSyncKey(user.id);
-    const cachedData = readCachedUserData();
     let data: UserDataDocument;
 
     if (isNewAccount) {
+      const cachedData = readCachedUserData();
       data = hasCachedUserData(cachedData)
         ? await importUserData(cachedData)
         : await getUserData();
@@ -120,6 +120,7 @@ function SessionRouter() {
       const needsLegacyImport =
         localStorage.getItem(LEGACY_MIGRATION_KEY) !== "1";
       const hasPendingChanges = localStorage.getItem(pendingKey) === "1";
+      const cachedData = readCachedUserData();
       data = remoteData;
 
       if (needsLegacyImport || hasPendingChanges) {

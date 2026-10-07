@@ -24,7 +24,9 @@ export type UserDataDocument = {
   workouts: Workout[];
 };
 
-const API_BASE = (import.meta.env.VITE_API_URL || "/api").replace(/\/$/, "");
+const API_BASE = (
+  import.meta.env.DEV ? "/api" : import.meta.env.VITE_API_URL || "/api"
+).replace(/\/$/, "");
 export const PENDING_SYNC_KEY = "gestao-pessoal:pending-sync";
 export const LEGACY_MIGRATION_KEY = "gestao-pessoal:legacy-import-complete";
 

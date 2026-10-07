@@ -35,7 +35,7 @@ Também estão disponíveis `npm run build`, `npm run lint` e `npm run preview`.
 
 O frontend autentica no backend e sincroniza as coleções por conta. Ao criar uma conta, os dados existentes nas chaves do `localStorage` são importados para ela antes de liberar o acesso. No login, o cache local é exibido primeiro e depois atualizado pelos dados da conta; alterações locais marcadas como pendentes são enviadas ao backend. O backend persiste o documento JSONB por usuário na tabela `USER_APP_DATA`.
 
-O endpoint da API é configurado pela variável `VITE_API_URL` no arquivo `.env`, com `http://localhost:300` como padrão. As chamadas do frontend e o proxy do Vite usam essa configuração. Para apontar para outra instalação do backend, altere o valor da variável. No backend, configure `URLFRONT` com a origem do frontend (por exemplo, `http://localhost:5173`) e as variáveis `DATABASE_CONNECT` e `SECRET`, conforme a documentação do backend.
+O endpoint da API é configurado pela variável `VITE_API_URL` no arquivo `.env`, com `http://localhost:300` como padrão. Durante o desenvolvimento, as chamadas passam pelo proxy do Vite, que encaminha as requisições para esse endpoint; em produção, usam a URL configurada diretamente. Para apontar para outra instalação do backend, altere o valor da variável. No backend, configure `URLFRONT` com a origem do frontend (por exemplo, `http://localhost:5173`) e as variáveis `DATABASE_CONNECT` e `SECRET`, conforme a documentação do backend.
 
 Os lembretes atuais aparecem dentro da aplicação por meio da lista de próximos eventos. Notificações do navegador em segundo plano ainda não fazem parte desta versão.
 # Gestao-Pessoal
