@@ -9,7 +9,7 @@ import "./auth.css";
 export function AuthScreen({
   onAuthenticated,
 }: {
-  onAuthenticated: (user: UserProfile) => Promise<void>;
+  onAuthenticated: (user: UserProfile, isNewAccount: boolean) => Promise<void>;
 }) {
   const location = useLocation();
   const isRegister = location.pathname === "/cadastro";
@@ -31,7 +31,7 @@ export function AuthScreen({
       const user = isRegister
         ? await register(name.trim(), email.trim(), password)
         : await login(email.trim(), password);
-      await onAuthenticated(user);
+      await onAuthenticated(user, isRegister);
     } catch (cause) {
       setError(
         cause instanceof Error

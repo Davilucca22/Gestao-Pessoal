@@ -101,24 +101,37 @@ function SessionRouter() {
   const [loadError, setLoadError] = useState("");
   const navigate = useNavigate();
 
-  const hydrateSession = useCallback(async (user: UserProfile) => {
-    const remoteData = await getUserData();
+  const hydrateSession = useCallback(async (
+    user: UserProfile,
+    isNewAccount = false,
+  ) => {
     const pendingKey = pendingSyncKey(user.id);
-    const needsLegacyImport =
-      localStorage.getItem(LEGACY_MIGRATION_KEY) !== "1";
-    const hasPendingChanges = localStorage.getItem(pendingKey) === "1";
-    let data = remoteData;
+    const cachedData = readCachedUserData();
+    let data: UserDataDocument;
 
-    if (needsLegacyImport || hasPendingChanges) {
-      const cachedData = readCachedUserData();
-      if (hasCachedUserData(cachedData)) {
-        data = await importUserData(cachedData);
-      }
-
-      if (needsLegacyImport) {
-        localStorage.setItem(LEGACY_MIGRATION_KEY, "1");
-      }
+    if (isNewAccount) {
+      data = hasCachedUserData(cachedData)
+        ? await importUserData(cachedData)
+        : await getUserData();
+      localStorage.setItem(LEGACY_MIGRATION_KEY, "1");
       localStorage.removeItem(pendingKey);
+    } else {
+      const remoteData = await getUserData();
+      const needsLegacyImport =
+        localStorage.getItem(LEGACY_MIGRATION_KEY) !== "1";
+      const hasPendingChanges = localStorage.getItem(pendingKey) === "1";
+      data = remoteData;
+
+      if (needsLegacyImport || hasPendingChanges) {
+        if (hasCachedUserData(cachedData)) {
+          data = await importUserData(cachedData);
+        }
+
+        if (needsLegacyImport) {
+          localStorage.setItem(LEGACY_MIGRATION_KEY, "1");
+        }
+        localStorage.removeItem(pendingKey);
+      }
     }
 
     cacheUserData(data);
@@ -127,11 +140,28 @@ function SessionRouter() {
     setLoading(false);
   }, []);
 
+  const showCachedSession = useCallback((user: UserProfile) => {
+    setSession({ user, data: readCachedUserData() });
+    setLoadError("");
+    setLoading(false);
+  }, []);
+
+  const reportBackgroundSyncError = (error: unknown) => {
+    toast.error(
+      error instanceof Error
+        ? `Não foi possível sincronizar: ${error.message}`
+        : "Não foi possível sincronizar seus dados.",
+      { autoClose: false },
+    );
+  };
+
   useEffect(() => {
     let active = true;
     getCurrentUser()
-      .then(async (user) => {
-        if (active) await hydrateSession(user);
+      .then((user) => {
+        if (!active) return;
+        showCachedSession(user);
+        void hydrateSession(user).catch(reportBackgroundSyncError);
       })
       .catch((error: unknown) => {
         if (!active) return;
@@ -149,23 +179,33 @@ function SessionRouter() {
     return () => {
       active = false;
     };
-  }, [hydrateSession]);
+  }, [hydrateSession, showCachedSession]);
 
-  const finishAuthentication = async (user: UserProfile) => {
+  const finishAuthentication = async (
+    user: UserProfile,
+    isNewAccount: boolean,
+  ) => {
     setLoading(true);
     setLoadError("");
-    try {
-      await hydrateSession(user);
-      navigate("/", { replace: true });
-    } catch (error) {
-      setLoading(false);
-      setLoadError(
-        error instanceof Error
-          ? error.message
-          : "Não foi possível carregar seus dados.",
-      );
-      throw error;
+    if (isNewAccount) {
+      try {
+        await hydrateSession(user, true);
+        navigate("/", { replace: true });
+      } catch (error) {
+        setLoading(false);
+        setLoadError(
+          error instanceof Error
+            ? error.message
+            : "Não foi possível carregar seus dados.",
+        );
+        throw error;
+      }
+      return;
     }
+
+    showCachedSession(user);
+    navigate("/", { replace: true });
+    void hydrateSession(user).catch(reportBackgroundSyncError);
   };
 
   const finishLogout = () => {
@@ -177,8 +217,8 @@ function SessionRouter() {
     navigate("/login", { replace: true });
   };
 
-  if (loading) return <AuthLoading />;
-  if (loadError) {
+  if (loading && !session) return <AuthLoading />;
+  if (loadError && !session) {
     return (
       <AuthLoading
         error={loadError}
@@ -186,7 +226,10 @@ function SessionRouter() {
           setLoading(true);
           setLoadError("");
           getCurrentUser()
-            .then(hydrateSession)
+            .then((user) => {
+              showCachedSession(user);
+              void hydrateSession(user).catch(reportBackgroundSyncError);
+            })
             .catch((error: unknown) => {
               if (error instanceof ApiError && [401, 404].includes(error.status)) {
                 setLoading(false);
@@ -250,9 +293,26 @@ function Shell({
   const [initialSnapshot] = useState(() => JSON.stringify(initialData));
   const latestSnapshot = useRef(initialSnapshot);
   const lastSavedSnapshot = useRef(initialSnapshot);
+  const appliedInputSnapshot = useRef(initialSnapshot);
   const syncQueue = useRef<Promise<void>>(Promise.resolve());
   const syncTimer = useRef<number | null>(null);
   const syncErrorShown = useRef(false);
+  const inputSnapshot = JSON.stringify(initialData);
+
+  useEffect(() => {
+    if (inputSnapshot === appliedInputSnapshot.current) return;
+    appliedInputSnapshot.current = inputSnapshot;
+    if (latestSnapshot.current !== lastSavedSnapshot.current) return;
+
+    setTransactions(initialData.transactions);
+    setCustomTransactionTypes(initialData.customTransactionTypes);
+    setHabits(initialData.habits);
+    setNotes(initialData.notes);
+    setEvents(initialData.events);
+    setWorkouts(initialData.workouts);
+    latestSnapshot.current = inputSnapshot;
+    lastSavedSnapshot.current = inputSnapshot;
+  }, [initialData, inputSnapshot]);
   useEffect(
     () => writeStorage(STORAGE_KEYS.transactions, transactions),
     [transactions],
