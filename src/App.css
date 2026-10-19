@@ -159,6 +159,19 @@
   @media (max-width: 1024px) {
     height: 48px;
   }
+
+  .sidebar-foot > div:last-child {
+    min-width: 0;
+  }
+
+  .sidebar-foot strong,
+  .sidebar-foot small {
+    display: block;
+    max-width: 145px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
 }
 
 .ticks {

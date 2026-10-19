@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import type { FormEvent } from "react";
 import {
   BrowserRouter,
@@ -7,7 +7,6 @@ import {
   Route,
   Routes,
   useLocation,
-  useNavigate,
 } from "react-router-dom";
 import { ToastContainer, toast } from "react-toastify";
 import {
@@ -44,23 +43,9 @@ import {
   X,
 } from "lucide-react";
 import "react-toastify/dist/ReactToastify.css";
-import { STORAGE_KEYS, writeStorage } from "./lib/storage";
-import {
-  ApiError,
-  cacheUserData,
-  clearCachedUserData,
-  getCurrentUser,
-  getUserData,
-  hasCachedUserData,
-  importUserData,
-  LEGACY_MIGRATION_KEY,
-  logout as logoutApi,
-  pendingSyncKey,
-  readCachedUserData,
-  replaceUserData,
-} from "./lib/api";
-import type { UserDataDocument, UserProfile } from "./lib/api";
-import { AuthLoading, AuthScreen } from "./auth/Auth";
+import { readAppData, STORAGE_KEYS, writeStorage } from "./lib/storage";
+import type { AppData } from "./lib/storage";
+import "./App.css";
 import type {
   CalendarEvent,
   CustomTransactionType,
@@ -82,204 +67,18 @@ const dateLabel = (value: string) =>
     .replace(".", "");
 type Icon = typeof Wallet;
 
-type Session = {
-  user: UserProfile;
-  data: UserDataDocument;
-};
-
 function App() {
   return (
     <BrowserRouter>
-      <SessionRouter />
+      <Shell initialData={readAppData()} />
     </BrowserRouter>
   );
 }
 
-function SessionRouter() {
-  const [session, setSession] = useState<Session | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [loadError, setLoadError] = useState("");
-  const navigate = useNavigate();
-
-  const hydrateSession = useCallback(async (
-    user: UserProfile,
-    isNewAccount = false,
-  ) => {
-    const pendingKey = pendingSyncKey(user.id);
-    let data: UserDataDocument;
-
-    if (isNewAccount) {
-      const cachedData = readCachedUserData();
-      data = hasCachedUserData(cachedData)
-        ? await importUserData(cachedData)
-        : await getUserData();
-      localStorage.setItem(LEGACY_MIGRATION_KEY, "1");
-      localStorage.removeItem(pendingKey);
-    } else {
-      const remoteData = await getUserData();
-      const needsLegacyImport =
-        localStorage.getItem(LEGACY_MIGRATION_KEY) !== "1";
-      const hasPendingChanges = localStorage.getItem(pendingKey) === "1";
-      const cachedData = readCachedUserData();
-      data = remoteData;
-
-      if (needsLegacyImport || hasPendingChanges) {
-        if (hasCachedUserData(cachedData)) {
-          data = await importUserData(cachedData);
-        }
-
-        if (needsLegacyImport) {
-          localStorage.setItem(LEGACY_MIGRATION_KEY, "1");
-        }
-        localStorage.removeItem(pendingKey);
-      }
-    }
-
-    cacheUserData(data);
-    setSession({ user, data });
-    setLoadError("");
-    setLoading(false);
-  }, []);
-
-  const showCachedSession = useCallback((user: UserProfile) => {
-    setSession({ user, data: readCachedUserData() });
-    setLoadError("");
-    setLoading(false);
-  }, []);
-
-  const reportBackgroundSyncError = (error: unknown) => {
-    toast.error(
-      error instanceof Error
-        ? `Não foi possível sincronizar: ${error.message}`
-        : "Não foi possível sincronizar seus dados.",
-      { autoClose: false },
-    );
-  };
-
-  useEffect(() => {
-    let active = true;
-    getCurrentUser()
-      .then((user) => {
-        if (!active) return;
-        showCachedSession(user);
-        void hydrateSession(user).catch(reportBackgroundSyncError);
-      })
-      .catch((error: unknown) => {
-        if (!active) return;
-        if (error instanceof ApiError && [401, 404].includes(error.status)) {
-          setLoading(false);
-          return;
-        }
-        setLoadError(
-          error instanceof Error
-            ? error.message
-            : "Não foi possível conectar ao servidor.",
-        );
-        setLoading(false);
-      });
-    return () => {
-      active = false;
-    };
-  }, [hydrateSession, showCachedSession]);
-
-  const finishAuthentication = async (
-    user: UserProfile,
-    isNewAccount: boolean,
-  ) => {
-    setLoading(true);
-    setLoadError("");
-    if (isNewAccount) {
-      try {
-        await hydrateSession(user, true);
-        navigate("/", { replace: true });
-      } catch (error) {
-        setLoading(false);
-        setLoadError(
-          error instanceof Error
-            ? error.message
-            : "Não foi possível carregar seus dados.",
-        );
-        throw error;
-      }
-      return;
-    }
-
-    showCachedSession(user);
-    navigate("/", { replace: true });
-    void hydrateSession(user).catch(reportBackgroundSyncError);
-  };
-
-  const finishLogout = () => {
-    clearCachedUserData();
-    if (session) {
-      localStorage.removeItem(pendingSyncKey(session.user.id));
-    }
-    setSession(null);
-    navigate("/login", { replace: true });
-  };
-
-  if (loading && !session) return <AuthLoading />;
-  if (loadError && !session) {
-    return (
-      <AuthLoading
-        error={loadError}
-        retry={() => {
-          setLoading(true);
-          setLoadError("");
-          getCurrentUser()
-            .then((user) => {
-              showCachedSession(user);
-              void hydrateSession(user).catch(reportBackgroundSyncError);
-            })
-            .catch((error: unknown) => {
-              if (error instanceof ApiError && [401, 404].includes(error.status)) {
-                setLoading(false);
-                return;
-              }
-              setLoadError(
-                error instanceof Error
-                  ? error.message
-                  : "Não foi possível conectar ao servidor.",
-              );
-              setLoading(false);
-            });
-        }}
-      />
-    );
-  }
-  if (!session) {
-    return (
-      <Routes>
-        <Route
-          path="/login"
-          element={<AuthScreen onAuthenticated={finishAuthentication} />}
-        />
-        <Route
-          path="/cadastro"
-          element={<AuthScreen onAuthenticated={finishAuthentication} />}
-        />
-        <Route path="*" element={<Navigate to="/login" replace />} />
-      </Routes>
-    );
-  }
-  return (
-    <Shell
-      key={String(session.user.id)}
-      profile={session.user}
-      initialData={session.data}
-      onLogout={finishLogout}
-    />
-  );
-}
-
 function Shell({
-  profile,
   initialData,
-  onLogout,
 }: {
-  profile: UserProfile;
-  initialData: UserDataDocument;
-  onLogout: () => void;
+  initialData: AppData;
 }) {
   const [transactions, setTransactions] = useState(initialData.transactions);
   const [customTransactionTypes, setCustomTransactionTypes] = useState<CustomTransactionType[]>(() =>
@@ -290,30 +89,6 @@ function Shell({
   const [events, setEvents] = useState<CalendarEvent[]>(initialData.events);
   const [workouts, setWorkouts] = useState<Workout[]>(initialData.workouts);
   const [open, setOpen] = useState(false);
-  const [loggingOut, setLoggingOut] = useState(false);
-  const [initialSnapshot] = useState(() => JSON.stringify(initialData));
-  const latestSnapshot = useRef(initialSnapshot);
-  const lastSavedSnapshot = useRef(initialSnapshot);
-  const appliedInputSnapshot = useRef(initialSnapshot);
-  const syncQueue = useRef<Promise<void>>(Promise.resolve());
-  const syncTimer = useRef<number | null>(null);
-  const syncErrorShown = useRef(false);
-  const inputSnapshot = JSON.stringify(initialData);
-
-  useEffect(() => {
-    if (inputSnapshot === appliedInputSnapshot.current) return;
-    appliedInputSnapshot.current = inputSnapshot;
-    if (latestSnapshot.current !== lastSavedSnapshot.current) return;
-
-    setTransactions(initialData.transactions);
-    setCustomTransactionTypes(initialData.customTransactionTypes);
-    setHabits(initialData.habits);
-    setNotes(initialData.notes);
-    setEvents(initialData.events);
-    setWorkouts(initialData.workouts);
-    latestSnapshot.current = inputSnapshot;
-    lastSavedSnapshot.current = inputSnapshot;
-  }, [initialData, inputSnapshot]);
   useEffect(
     () => writeStorage(STORAGE_KEYS.transactions, transactions),
     [transactions],
@@ -326,89 +101,6 @@ function Shell({
   useEffect(() => writeStorage(STORAGE_KEYS.notes, notes), [notes]);
   useEffect(() => writeStorage(STORAGE_KEYS.events, events), [events]);
   useEffect(() => writeStorage(STORAGE_KEYS.workouts, workouts), [workouts]);
-  useEffect(() => {
-    const data: UserDataDocument = {
-      transactions,
-      customTransactionTypes,
-      habits,
-      notes,
-      events,
-      workouts,
-    };
-    const snapshot = JSON.stringify(data);
-    latestSnapshot.current = snapshot;
-    if (snapshot === lastSavedSnapshot.current) return;
-
-    localStorage.setItem(pendingSyncKey(profile.id), "1");
-    const timeout = window.setTimeout(() => {
-      syncTimer.current = null;
-      const save = syncQueue.current
-        .then(async () => {
-          const savedData = await replaceUserData(data);
-          if (latestSnapshot.current === snapshot) {
-            cacheUserData(savedData);
-            lastSavedSnapshot.current = snapshot;
-            localStorage.removeItem(pendingSyncKey(profile.id));
-            syncErrorShown.current = false;
-          }
-        })
-        .catch((error: unknown) => {
-          if (!syncErrorShown.current) {
-            toast.error(
-              error instanceof Error
-                ? `Não foi possível sincronizar: ${error.message}`
-                : "Não foi possível sincronizar seus dados.",
-              { autoClose: false },
-            );
-            syncErrorShown.current = true;
-          }
-        });
-      syncQueue.current = save;
-    }, 450);
-    syncTimer.current = timeout;
-    return () => {
-      window.clearTimeout(timeout);
-      if (syncTimer.current === timeout) syncTimer.current = null;
-    };
-  }, [
-    profile.id,
-    transactions,
-    customTransactionTypes,
-    habits,
-    notes,
-    events,
-    workouts,
-  ]);
-
-  const handleLogout = async () => {
-    setLoggingOut(true);
-    try {
-      if (syncTimer.current !== null) {
-        window.clearTimeout(syncTimer.current);
-        syncTimer.current = null;
-      }
-      await syncQueue.current;
-      const data: UserDataDocument = {
-        transactions,
-        customTransactionTypes,
-        habits,
-        notes,
-        events,
-        workouts,
-      };
-      await replaceUserData(data);
-      await logoutApi();
-      onLogout();
-    } catch (error) {
-      toast.error(
-        error instanceof Error
-          ? `Não foi possível encerrar a sessão: ${error.message}`
-          : "Não foi possível encerrar a sessão.",
-      );
-    } finally {
-      setLoggingOut(false);
-    }
-  };
 
   const links: [string, string, Icon][] = [
     ["/", "Visão geral", LayoutDashboard],
@@ -443,10 +135,12 @@ function Shell({
             ))}
           </nav>
           <div className="sidebar-foot">
-            <div className="profile-dot">{profile.name.slice(0, 2).toUpperCase()}</div>
+            <div className="profile-dot">
+              <Check size={14} />
+            </div>
             <div>
-              <strong>{profile.name}</strong>
-              <small>{profile.email}</small>
+              <strong>Dados locais</strong>
+              <small>Salvos neste dispositivo</small>
             </div>
           </div>
         </aside>
@@ -478,14 +172,6 @@ function Shell({
                   month: "long",
                 })}
               </span>
-              <button
-                className="logout-button"
-                onClick={handleLogout}
-                disabled={loggingOut}
-              >
-                {loggingOut ? "Saindo..." : "Sair"}
-              </button>
-              <div className="avatar">{profile.name.slice(0, 2).toUpperCase()}</div>
             </div>
           </header>
           <Routes>
@@ -497,7 +183,6 @@ function Shell({
                   habits={habits}
                   events={events}
                   notes={notes}
-                  name={profile.name}
                 />
               }
             />
@@ -611,13 +296,11 @@ function Dashboard({
   habits,
   events,
   notes,
-  name,
 }: {
   transactions: Transaction[];
   habits: Habit[];
   events: CalendarEvent[];
   notes: Note[];
-  name: string;
 }) {
   const income = sum(transactions, "income");
   const expense = sum(transactions, "expense");
@@ -637,7 +320,7 @@ function Dashboard({
           day: "numeric",
           month: "long",
         })}
-        title={`Bom dia, ${name.split(" ")[0]}.`}
+        title="Bom dia."
         description="Aqui está um retrato do seu momento."
         action={
           <button

@@ -1,3 +1,21 @@
+import type {
+  CalendarEvent,
+  CustomTransactionType,
+  Habit,
+  Note,
+  Transaction,
+  Workout,
+} from "../types";
+
+export type AppData = {
+  transactions: Transaction[];
+  customTransactionTypes: CustomTransactionType[];
+  habits: Habit[];
+  notes: Note[];
+  events: CalendarEvent[];
+  workouts: Workout[];
+};
+
 export function readStorage<T>(key: string, fallback: T): T {
   try {
     const value = localStorage.getItem(key)
@@ -18,4 +36,15 @@ export const STORAGE_KEYS = {
   notes: 'gestao-pessoal:notes',
   events: 'gestao-pessoal:events',
   workouts: 'gestao-pessoal:workouts',
+}
+
+export function readAppData(): AppData {
+  return {
+    transactions: readStorage(STORAGE_KEYS.transactions, []),
+    customTransactionTypes: readStorage(STORAGE_KEYS.customTransactionTypes, []),
+    habits: readStorage(STORAGE_KEYS.habits, []),
+    notes: readStorage(STORAGE_KEYS.notes, []),
+    events: readStorage(STORAGE_KEYS.events, []),
+    workouts: readStorage(STORAGE_KEYS.workouts, []),
+  };
 }
